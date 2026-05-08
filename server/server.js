@@ -473,6 +473,14 @@ app.post('/api/config', (req, res) => {
   });
 });
 
+// Clean up temp files on startup
+const tempDir = path.join(__dirname, '.temp');
+if (fs.existsSync(tempDir)) {
+  try {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  } catch { /* ignore */ }
+}
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`\n✓ Backend server running on http://localhost:${PORT}`);

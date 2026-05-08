@@ -145,9 +145,6 @@ vite.config.ts.timestamp-*
 # SpecStory history files (keep locally, don't commit to git)
 .specstory/
 
-# SpecStory history files
-.specstory/
-
 # Test reports and artifacts
 playwright-report/
 test-results/

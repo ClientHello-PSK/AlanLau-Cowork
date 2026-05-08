@@ -1,16 +1,10 @@
 
-# Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
-.specstory/**
-
 # Exclude plan files to reduce token consumption (can be explicitly included via @ references)
 .cursor/plans/**
 docs/plans/**
 
 # Exclude test files (can be explicitly included when needed)
 tests/**
-
-# Exclude prototype files (can be explicitly included when needed)
-ux-prototype/**
 
 # Exclude large media files
 *.gif
@@ -26,13 +20,8 @@ playwright-report/**
 test-results/**
 screenshots/**
 videos/**
+coverage/**
 
 # Exclude large documentation files that are rarely needed in context
-冗余文件分析报告.md
-server/桌面整理方案.md
-server/桌面整理使用说明.md
 docs/测试防护网实施总结.md
 docs/自动化防护网验证报告.md
-
-# Exclude large code files (can be explicitly included via @ references)
-renderer/style.css

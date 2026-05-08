@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个基于 Electron 的桌面聊天应用，使用 Claude Agent SDK 构建 AI 助手。应用支持多会话管理、500+ 工具调用、实时流式响应等功能。
+这是一个基于 Electron 的桌面聊天应用，使用 DeepSeek API 构建 AI 助手。应用支持多会话管理、内置工具调用（文件读写、Bash、搜索等）、实时流式响应等功能。
 
 ## 常用命令
 
@@ -55,7 +55,11 @@ cd server && npm install
 ### 自动化设置
 
 ```bash
-./setup.sh    # 运行自动化配置脚本
+# Windows 一键启动
+start.bat         # 自动安装依赖并启动服务
+start-dev.bat     # 开发模式启动
+stop.bat          # 停止所有服务
+reinstall.bat     # 重装依赖
 ```
 
 ### 测试命令
@@ -95,14 +99,14 @@ npm run lint:fix    # 自动修复代码风格问题
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Backend Server                               │
 │  ┌─────────────────┐    ┌─────────────────┐                     │
-│  │  Express.js     │───▶│ Claude Agent SDK │                    │
-│  │  (server.js)    │    │  + Session Mgmt  │                    │
+│  │  Express.js     │───▶│  DeepSeek API    │                    │
+│  │  (server.js)    │    │ (OpenAI SDK)     │                    │
 │  └─────────────────┘    └────────┬─────────┘                    │
 │                                  │                               │
 │                                  ▼                               │
 │                    ┌─────────────────────────┐                   │
-│                    │   Composio Tool Router  │                   │
-│                    │   (MCP Server)          │                   │
+│                    │   Tool Executor         │                   │
+│                    │   (tools.js)            │                   │
 │                    └─────────────────────────┘                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -125,17 +129,18 @@ npm run lint:fix    # 自动修复代码风格问题
 
 ### 后端服务器
 
-- **[server/server.js](server/server.js)** - Express 服务器，集成 Claude Agent SDK，处理聊天请求和 SSE 流式响应
+- **[server/server.js](server/server.js)** - Express 服务器，集成 DeepSeek API，处理聊天请求和 SSE 流式响应
+- **[server/tools.js](server/tools.js)** - 工具定义与执行器（Read/Write/Edit/Bash/Glob/Grep/WebFetch/TodoWrite）
 - **[server/package.json](server/package.json)** - 后端依赖配置（使用 ES modules：`"type": "module"`）
 
 ## 会话管理机制
 
-应用使用 Claude Agent SDK 的内置会话管理：
+应用使用服务端内存中的消息历史实现会话管理：
 
-1. **首次消息**：创建新会话，SDK 返回 `session_id`（从 `system.subtype === 'init'` 的 chunk 中获取）
-2. **后续消息**：使用 `resume` 选项传入已存储的 session ID
-3. **前端映射**：通过 `chatSessions` Map 将 `chatId` 映射到 SDK `session_id`
-4. **上下文保持**：完整的对话上下文在服务端维护
+1. **首次消息**：在 `chatSessions` Map 中为 chatId 创建新会话
+2. **后续消息**：使用同一 chatId 追加消息到已有会话
+3. **前端映射**：前端通过 `currentChatId` 对应服务端的 chatId
+4. **上下文保持**：完整的对话上下文在服务端维护，支持自动裁剪超长消息
 
 ## 多聊天功能
 
@@ -148,11 +153,13 @@ npm run lint:fix    # 自动修复代码风格问题
 
 后端通过 Server-Sent Events 流式传输数据：
 
-- `session_init` - 会话初始化，包含 session_id
+- `session_init` - 会话初始化
 - `text` - 文本内容
+- `reasoning` - 深度思考内容
 - `tool_use` - 工具调用信息
 - `tool_result` - 工具执行结果
 - `done` - 响应完成
+- `error` - 错误信息
 
 前端在 `handleSendMessage()` 中逐行解析 SSE 数据，实时更新 UI。
 
@@ -165,8 +172,8 @@ npm run lint:fix    # 自动修复代码风格问题
 ## 配置文件
 
 - **[.env](.env)** - API 密钥配置（不提交到版本控制）
-  - `ANTHROPIC_API_KEY` - Anthropic API 密钥
-  - `COMPOSIO_API_KEY` - Composio API 密钥
+  - `DEEPSEEK_API_KEY` - DeepSeek API 密钥
+  - `DEEPSEEK_BASE_URL` - DeepSeek API 地址
 - **[.env.example](.env.example)** - 环境变量模板
 
 ## 技术栈
@@ -175,8 +182,8 @@ npm run lint:fix    # 自动修复代码风格问题
 | -------- | ------------------------------ |
 | 桌面框架 | Electron.js                    |
 | 后端     | Node.js + Express (ES modules) |
-| AI Agent | Claude Agent SDK               |
-| 工具集成 | Composio Tool Router           |
+| AI API   | DeepSeek API (OpenAI SDK)      |
+| 工具执行 | 自研 Tool Executor (tools.js)  |
 | 流式传输 | Server-Sent Events (SSE)       |
 | Markdown | Marked.js                      |
 
@@ -184,9 +191,10 @@ npm run lint:fix    # 自动修复代码风格问题
 
 1. **后端使用 ES modules**：`server/package.json` 中设置 `"type": "module"`，使用 `import/export` 语法
 2. **IPC 通信**：通过 preload.js 的 `contextBridge` 暴露安全 API，避免直接使用 `ipcRenderer`
-3. **流式响应**：使用 `for await` 循环处理 SDK 返回的异步迭代器
-4. **会话恢复**：确保在调用 SDK 时传递正确的 `resume` 参数以恢复会话上下文
+3. **流式响应**：使用 DeepSeek API 的 streaming 模式，通过 SSE 推送到前端
+4. **文件沙箱**：支持配置工作目录，所有文件操作限制在沙箱范围内
 5. **热重载**：开发模式下使用 `electron-reload` 实现自动重载
+6. **工具执行**：后端通过 agentic loop 自动执行工具调用，支持多轮工具调用直到任务完成
 
 ## Plan 文档组织规范
 
