@@ -22,7 +22,7 @@ describe('AppState Class', () => {
       expect(state.toolCalls).toEqual([]);
       expect(state.fileChanges).toEqual([]);
       expect(state.attachedFiles).toEqual([]);
-      expect(state.selectedModel).toBe('minimax-2-1');
+      expect(state.selectedModel).toBe('deepseek-v4-flash');
       expect(state.thinkingMode).toBe('normal');
       expect(state.isWaitingForResponse).toBe(false);
       expect(state.currentRequestId).toBeNull();

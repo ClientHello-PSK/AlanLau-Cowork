@@ -103,7 +103,7 @@ function setupDOM() {
         <input type="file" id="homeFileInput" />
         <button id="homeThinkingBtn"></button>
         <select id="homeModelSelect">
-          <option value="minimax-2-1">MiniMax</option>
+          <option value="deepseek-v4-flash">DeepSeek V4 Flash</option>
           <option value="claude-3-5-sonnet">Claude</option>
         </select>
       </form>
@@ -123,7 +123,7 @@ function setupDOM() {
         <input type="file" id="chatFileInput" />
         <button id="chatThinkingBtn"></button>
         <select id="chatModelSelect">
-          <option value="minimax-2-1">MiniMax</option>
+          <option value="deepseek-v4-flash">DeepSeek V4 Flash</option>
         </select>
       </form>
       <div id="chatMessages"></div>
@@ -278,7 +278,7 @@ describe('Renderer - State Management', () => {
       toolCalls: [],
       fileChanges: [],
       attachedFiles: [],
-      selectedModel: 'minimax-2-1',
+      selectedModel: 'deepseek-v4-flash',
       thinkingMode: 'normal',
       isWaitingForResponse: false,
       currentRequestId: null,
@@ -554,7 +554,7 @@ describe('Renderer - Model Selection', () => {
 
   it('should have default model selected', () => {
     const homeSelect = document.getElementById('homeModelSelect');
-    expect(homeSelect.value).toBe('minimax-2-1');
+    expect(homeSelect.value).toBe('deepseek-v4-flash');
   });
 });
 

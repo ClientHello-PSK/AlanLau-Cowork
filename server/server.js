@@ -4,7 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import OpenAI from 'openai';
+import { toolDefinitions, executeTool } from './tools.js';
 
 // Skills 模块
 import { initSkillsDirectory, buildSkillsPrompt, seedExampleSkill } from './skill-loader.js';
@@ -36,8 +37,9 @@ function loadConfig() {
 
 function getDefaultConfig() {
   return {
-    apiEndpoint: process.env.ANTHROPIC_API_ENDPOINT || 'https://api.anthropic.com',
-    apiKey: process.env.ANTHROPIC_API_KEY || '',
+    apiEndpoint: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+    apiKey: process.env.DEEPSEEK_API_KEY || '',
+    defaultModel: 'deepseek-v4-flash',
     maxTurns: 20,
     permissionMode: 'bypassPermissions',
     // Workspace sandbox settings
@@ -67,92 +69,97 @@ const serverConfig = loadConfig();
 // File Sandbox Utilities
 // ============================================
 
-/**
- * Check if a path is an absolute path (Windows or Unix)
- */
 function isAbsolutePath(p) {
-  if (!p) {
-    return false;
-  }
-  // Windows: C:\, D:\, etc. or UNC paths \\server\share
-  if (/^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\')) {
-    return true;
-  }
-  // Unix: starts with /
-  if (p.startsWith('/')) {
-    return true;
-  }
+  if (!p) return false;
+  if (/^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\')) return true;
+  if (p.startsWith('/')) return true;
   return false;
 }
 
-/**
- * Normalize and resolve a path relative to workspace
- */
 function resolveInWorkspace(targetPath, workspaceDir) {
-  if (!workspaceDir) {
-    return null;
-  }
-
-  const resolved = isAbsolutePath(targetPath)
-    ? path.resolve(targetPath)
-    : path.resolve(workspaceDir, targetPath);
-
-  return resolved;
+  if (!workspaceDir) return null;
+  return isAbsolutePath(targetPath) ? path.resolve(targetPath) : path.resolve(workspaceDir, targetPath);
 }
 
-/**
- * Check if a resolved path is within the workspace
- */
 function isPathInWorkspace(resolvedPath, workspaceDir) {
-  if (!workspaceDir || !resolvedPath) {
-    return false;
-  }
-
+  if (!workspaceDir || !resolvedPath) return false;
   const normalizedWorkspace = path.resolve(workspaceDir).toLowerCase();
   const normalizedPath = resolvedPath.toLowerCase();
-
   return (
     normalizedPath === normalizedWorkspace ||
     normalizedPath.startsWith(normalizedWorkspace + path.sep)
   );
 }
 
-/**
- * Validate file operation path against sandbox
- * Returns { allowed: boolean, reason?: string }
- */
 function validateFilePath(targetPath, workspaceDir) {
   if (!workspaceDir) {
     return { allowed: false, reason: '工作目录未设置，请先在设置中配置工作目录' };
   }
-
   const resolved = resolveInWorkspace(targetPath, workspaceDir);
-
   if (!isPathInWorkspace(resolved, workspaceDir)) {
     return {
       allowed: false,
       reason: `路径 "${targetPath}" 超出工作目录范围 (${workspaceDir})`
     };
   }
-
   return { allowed: true };
 }
 
+// ============================================
+// Session Management
+// ============================================
+
+// chatId -> { messages: [], lastAccess: number }
 const chatSessions = new Map();
 
+const SESSION_TTL = 60 * 60 * 1000; // 1 hour
+
+function trimMessages(messages, maxChars = 800000) {
+  let total = messages.reduce((sum, m) => sum + JSON.stringify(m).length, 0);
+  while (total > maxChars && messages.length > 2) {
+    messages.splice(1, 2); // 移除最早的一对 user/assistant
+    total = messages.reduce((sum, m) => sum + JSON.stringify(m).length, 0);
+  }
+}
+
+// Periodic session cleanup
+setInterval(() => {
+  const now = Date.now();
+  for (const [chatId, session] of chatSessions) {
+    if (now - session.lastAccess > SESSION_TTL) {
+      chatSessions.delete(chatId);
+    }
+  }
+}, 60 * 60 * 1000);
+
+// ============================================
 // Middleware
+// ============================================
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // Skills API 路由
 app.use('/api/skills', skillsRouter);
 
-// Chat endpoint using Claude Agent SDK
+// ============================================
+// SSE helper
+// ============================================
+
+function sseWrite(res, data) {
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+// ============================================
+// Chat endpoint using DeepSeek API
+// ============================================
+
 app.post('/api/chat', async (req, res) => {
-  const { message, chatId, userId = 'default-user', files } = req.body;
+  const { message, chatId, userId = 'default-user', files, model, thinkingMode } = req.body;
 
   console.log('[CHAT] Request received:', message);
   console.log('[CHAT] Chat ID:', chatId);
+  console.log('[CHAT] Model:', model || serverConfig.defaultModel);
   console.log('[CHAT] Files attached:', files?.length || 0);
 
   if (!message) {
@@ -166,117 +173,36 @@ app.post('/api/chat', async (req, res) => {
   res.flushHeaders();
 
   try {
-    // Check if we have an existing Claude session for this chat
-    const existingSessionId = chatId ? chatSessions.get(chatId) : null;
-    console.log(
-      '[CHAT] Existing session ID for',
-      chatId,
-      ':',
-      existingSessionId || 'none (new chat)'
-    );
-
     // Check workspace configuration
     if (serverConfig.sandboxEnabled && !serverConfig.workspaceDir) {
-      res.write(
-        `data: ${JSON.stringify({
-          type: 'error',
-          message: '请先在设置中配置工作目录（Workspace Directory）'
-        })}\n\n`
-      );
+      sseWrite(res, {
+        type: 'error',
+        message: '请先在设置中配置工作目录（Workspace Directory）'
+      });
       res.end();
       return;
     }
 
-    // Build query options with workspace sandbox
-    const queryOptions = {
-      allowedTools: [
-        'Read',
-        'Write',
-        'Edit',
-        'Bash',
-        'Glob',
-        'Grep',
-        'WebSearch',
-        'WebFetch',
-        'TodoWrite'
-      ],
-      maxTurns: serverConfig.maxTurns,
-      permissionMode: serverConfig.permissionMode
-    };
-
-    // Set working directory for file sandbox
-    if (serverConfig.workspaceDir) {
-      queryOptions.cwd = serverConfig.workspaceDir;
-      console.log('[SANDBOX] Working directory set to:', serverConfig.workspaceDir);
-    }
-
-    // Add path validation hook when sandbox is enabled
-    if (serverConfig.sandboxEnabled && serverConfig.workspaceDir) {
-      queryOptions.canUseTool = async (toolName, toolInput) => {
-        // File operation tools that need path validation
-        const fileTools = ['Read', 'Write', 'Edit', 'Glob', 'Grep'];
-
-        if (fileTools.includes(toolName)) {
-          // Extract path from various input formats
-          const filePath =
-            toolInput.path ||
-            toolInput.file ||
-            toolInput.target ||
-            toolInput.pattern ||
-            toolInput.glob_pattern;
-
-          if (filePath) {
-            const validation = validateFilePath(filePath, serverConfig.workspaceDir);
-            if (!validation.allowed) {
-              console.log(`[SANDBOX] Blocked ${toolName}: ${validation.reason}`);
-              return { allowed: false, reason: validation.reason };
-            }
-          }
-        }
-
-        // Bash commands: log warning but allow (cwd restriction applies)
-        if (toolName === 'Bash') {
-          console.log('[SANDBOX] Bash command in workspace:', toolInput.command?.substring(0, 50));
-        }
-
-        return { allowed: true };
-      };
-    }
-
-    // If we have an existing session, resume it
-    if (existingSessionId) {
-      queryOptions.resume = existingSessionId;
-      console.log('[CHAT] Resuming session:', existingSessionId);
-    }
-
-    console.log('[CHAT] Calling Claude Agent SDK...');
-
-    // 构建增强 prompt：消息 + 文件附件
+    // Build enhanced prompt with file attachments
     let enhancedPrompt = message;
 
-    // 如果有附件文件，将其内容添加到 prompt 中
     if (files && files.length > 0) {
-      // 确保临时目录存在
       const tempDir = path.join(__dirname, '.temp');
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
 
       const fileContents = files.map(file => {
-        if (file.type.startsWith('image/')) {
-          // 图片文件：保存到本地，传递文件路径
+        if (file.type?.startsWith('image/')) {
           const base64Data = file.data.replace(/^data:image\/\w+;base64,/, '');
           const buffer = Buffer.from(base64Data, 'base64');
           const ext = file.type.split('/')[1] || 'png';
           const filename = `img_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
           const filePath = path.join(tempDir, filename);
-
           fs.writeFileSync(filePath, buffer);
           console.log('[CHAT] Image saved to:', filePath);
-
           return `[Image: ${file.name}]\n文件路径: ${filePath}`;
         } else {
-          // 文本文件：直接包含内容
           return `[File: ${file.name}]\n\`\`\`\n${file.data}\n\`\`\``;
         }
       }).join('\n\n');
@@ -284,7 +210,7 @@ app.post('/api/chat', async (req, res) => {
       enhancedPrompt = `${message}\n\n---\n**附件内容：**\n\n${fileContents}`;
     }
 
-    // 构建技能上下文增强 prompt
+    // Inject skills context
     try {
       const skillsContext = await buildSkillsPrompt();
       if (skillsContext) {
@@ -295,78 +221,195 @@ app.post('/api/chat', async (req, res) => {
       console.warn('[SKILLS] Failed to build skills prompt:', skillError.message);
     }
 
-    // Stream responses from Claude Agent SDK
-    for await (const chunk of query({
-      prompt: enhancedPrompt,
-      options: queryOptions
-    })) {
-      // Capture session ID from system init message
-      if (chunk.type === 'system' && chunk.subtype === 'init') {
-        const newSessionId = chunk.session_id || chunk.data?.session_id || chunk.sessionId;
-        if (newSessionId && chatId) {
-          chatSessions.set(chatId, newSessionId);
-          console.log('[CHAT] Session ID captured:', newSessionId);
-        }
-        // Send session ID to frontend
-        if (newSessionId) {
-          res.write(
-            `data: ${JSON.stringify({ type: 'session_init', session_id: newSessionId })}\n\n`
-          );
-        }
-        continue;
+    // Load or create session
+    let session = chatSessions.get(chatId);
+    if (!session) {
+      session = { messages: [], lastAccess: Date.now() };
+      chatSessions.set(chatId, session);
+    }
+    session.lastAccess = Date.now();
+
+    // Append user message
+    session.messages.push({ role: 'user', content: enhancedPrompt });
+
+    // Trim if too long
+    trimMessages(session.messages);
+
+    // Create OpenAI client
+    const client = new OpenAI({
+      apiKey: serverConfig.apiKey,
+      baseURL: serverConfig.apiEndpoint || 'https://api.deepseek.com'
+    });
+
+    const selectedModel = model || serverConfig.defaultModel || 'deepseek-v4-flash';
+    const maxTurns = serverConfig.maxTurns;
+    const sandboxConfig = {
+      workspaceDir: serverConfig.workspaceDir,
+      sandboxEnabled: serverConfig.sandboxEnabled,
+      validateFilePath
+    };
+
+    // Agentic loop
+    let turnCount = 0;
+
+    while (turnCount < maxTurns) {
+      turnCount++;
+      console.log(`[CHAT] Turn ${turnCount}/${maxTurns}`);
+
+      // Build request options
+      const requestOptions = {
+        model: selectedModel,
+        messages: session.messages,
+        tools: toolDefinitions,
+        stream: true,
+        max_tokens: 16384
+      };
+
+      // Enable thinking mode
+      if (thinkingMode === 'extended') {
+        requestOptions.thinking = { type: 'enabled' };
+        requestOptions.reasoning_effort = 'high';
       }
 
-      // If it's an assistant message, extract and emit text content
-      if (chunk.type === 'assistant' && chunk.message && chunk.message.content) {
-        const content = chunk.message.content;
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block.type === 'text' && block.text) {
-              res.write(`data: ${JSON.stringify({ type: 'text', content: block.text })}\n\n`);
-            } else if (block.type === 'tool_use') {
-              const toolEvent = {
-                type: 'tool_use',
-                name: block.name,
-                input: block.input,
-                id: block.id
-              };
-              res.write(`data: ${JSON.stringify(toolEvent)}\n\n`);
-              console.log('[CHAT] Tool use:', block.name);
+      // Call DeepSeek API with streaming
+      const stream = await client.chat.completions.create(requestOptions);
+
+      let assistantContent = '';
+      let reasoningContent = '';
+      let toolCalls = [];
+      let hasReasoning = false;
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta;
+        const finishReason = chunk.choices[0]?.finish_reason;
+
+        // Handle reasoning content
+        if (delta?.reasoning_content) {
+          if (!hasReasoning) {
+            hasReasoning = true;
+          }
+          reasoningContent += delta.reasoning_content;
+          sseWrite(res, { type: 'reasoning', content: delta.reasoning_content });
+        }
+
+        // Handle text content
+        if (delta?.content) {
+          assistantContent += delta.content;
+          sseWrite(res, { type: 'text', content: delta.content });
+        }
+
+        // Handle tool call deltas
+        if (delta?.tool_calls) {
+          for (const tcDelta of delta.tool_calls) {
+            const idx = tcDelta.index;
+            if (!toolCalls[idx]) {
+              toolCalls[idx] = { id: tcDelta.id || '', function: { name: '', arguments: '' } };
+            }
+            if (tcDelta.id) toolCalls[idx].id = tcDelta.id;
+            if (tcDelta.function?.name) toolCalls[idx].function.name += tcDelta.function.name;
+            if (tcDelta.function?.arguments) {
+              toolCalls[idx].function.arguments += tcDelta.function.arguments;
             }
           }
         }
-        continue;
+
+        if (finishReason === 'stop' || finishReason === 'length') {
+          break;
+        }
       }
 
-      // If it's a tool result, format it nicely
-      if (chunk.type === 'tool_result' || chunk.type === 'result') {
-        const eventData = {
+      // Filter out incomplete tool calls
+      const completedToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function.name);
+
+      if (completedToolCalls.length === 0) {
+        // No tool calls, save assistant message and finish
+        if (assistantContent || reasoningContent) {
+          session.messages.push({ role: 'assistant', content: assistantContent || null });
+        }
+        break;
+      }
+
+      // Build assistant message with tool calls for history
+      const assistantMessage = {
+        role: 'assistant',
+        content: assistantContent || null,
+        tool_calls: completedToolCalls.map(tc => ({
+          id: tc.id,
+          type: 'function',
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments
+          }
+        }))
+      };
+      session.messages.push(assistantMessage);
+
+      // Execute each tool call
+      for (const toolCall of completedToolCalls) {
+        const toolName = toolCall.function.name;
+        let toolInput;
+        try {
+          toolInput = JSON.parse(toolCall.function.arguments);
+        } catch {
+          toolInput = {};
+        }
+
+        console.log('[CHAT] Tool use:', toolName);
+
+        // Emit tool_use SSE event
+        sseWrite(res, {
+          type: 'tool_use',
+          name: toolName,
+          input: toolInput,
+          id: toolCall.id
+        });
+
+        // Execute the tool
+        const toolResult = await executeTool(toolName, toolInput, sandboxConfig);
+        const resultStr = typeof toolResult === 'object' ? JSON.stringify(toolResult) : String(toolResult);
+
+        // Emit tool_result SSE event
+        sseWrite(res, {
           type: 'tool_result',
-          result: chunk.result || chunk.content || chunk,
-          tool_use_id: chunk.tool_use_id
-        };
-        res.write(`data: ${JSON.stringify(eventData)}\n\n`);
-        continue;
+          result: resultStr,
+          tool_use_id: toolCall.id
+        });
+
+        // Add tool result to messages
+        session.messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: resultStr
+        });
       }
 
-      // Skip system chunks, pass through others
-      if (chunk.type !== 'system') {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-      }
+      // Trim messages after tool execution round
+      trimMessages(session.messages);
     }
 
+    if (turnCount >= maxTurns) {
+      console.log('[CHAT] Reached max turns limit:', maxTurns);
+    }
+
+    // Save session
+    chatSessions.set(chatId, session);
+
     // Send completion signal
-    res.write('data: {"type": "done"}\n\n');
+    sseWrite(res, { type: 'done' });
     res.end();
     console.log('[CHAT] Stream completed');
   } catch (error) {
     console.error('[CHAT] Error:', error);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    sseWrite(res, { type: 'error', message: error.message });
     res.end();
   }
 });
 
-// Health check endpoint with diagnostic info
+// ============================================
+// Other endpoints
+// ============================================
+
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -383,46 +426,35 @@ app.get('/api/config', (req, res) => {
   res.json({
     apiEndpoint: serverConfig.apiEndpoint,
     hasApiKey: !!serverConfig.apiKey,
+    defaultModel: serverConfig.defaultModel,
     maxTurns: serverConfig.maxTurns,
     permissionMode: serverConfig.permissionMode,
-    // Sandbox settings
     workspaceDir: serverConfig.workspaceDir,
     sandboxEnabled: serverConfig.sandboxEnabled
   });
 });
 
-// Config endpoint - update config (for dynamic configuration)
+// Config endpoint - update config
 app.post('/api/config', (req, res) => {
-  const { apiEndpoint, apiKey, maxTurns, permissionMode, workspaceDir, sandboxEnabled } = req.body;
+  const { apiEndpoint, apiKey, defaultModel, maxTurns, permissionMode, workspaceDir, sandboxEnabled } = req.body;
 
-  if (apiEndpoint !== undefined) {
-    serverConfig.apiEndpoint = apiEndpoint;
-  }
-  if (apiKey !== undefined) {
-    serverConfig.apiKey = apiKey;
-  }
-  if (maxTurns !== undefined) {
-    serverConfig.maxTurns = maxTurns;
-  }
-  if (permissionMode !== undefined) {
-    serverConfig.permissionMode = permissionMode;
-  }
+  if (apiEndpoint !== undefined) serverConfig.apiEndpoint = apiEndpoint;
+  if (apiKey !== undefined) serverConfig.apiKey = apiKey;
+  if (defaultModel !== undefined) serverConfig.defaultModel = defaultModel;
+  if (maxTurns !== undefined) serverConfig.maxTurns = maxTurns;
+  if (permissionMode !== undefined) serverConfig.permissionMode = permissionMode;
   if (workspaceDir !== undefined) {
-    // Normalize path for Windows
     serverConfig.workspaceDir = workspaceDir ? path.resolve(workspaceDir) : '';
   }
-  if (sandboxEnabled !== undefined) {
-    serverConfig.sandboxEnabled = sandboxEnabled;
-  }
+  if (sandboxEnabled !== undefined) serverConfig.sandboxEnabled = sandboxEnabled;
 
-  // Persist workspace settings
   saveConfig();
 
   console.log('[CONFIG] Config updated:', {
     apiEndpoint: serverConfig.apiEndpoint,
     hasApiKey: !!serverConfig.apiKey,
+    defaultModel: serverConfig.defaultModel,
     maxTurns: serverConfig.maxTurns,
-    permissionMode: serverConfig.permissionMode,
     workspaceDir: serverConfig.workspaceDir,
     sandboxEnabled: serverConfig.sandboxEnabled
   });
@@ -432,6 +464,7 @@ app.post('/api/config', (req, res) => {
     config: {
       apiEndpoint: serverConfig.apiEndpoint,
       hasApiKey: !!serverConfig.apiKey,
+      defaultModel: serverConfig.defaultModel,
       maxTurns: serverConfig.maxTurns,
       permissionMode: serverConfig.permissionMode,
       workspaceDir: serverConfig.workspaceDir,
@@ -451,7 +484,6 @@ app.listen(PORT, async () => {
   const skillsInit = await initSkillsDirectory();
   if (skillsInit.success) {
     console.log('✓ Skills directory initialized');
-    // 预置示例技能
     await seedExampleSkill();
   } else {
     console.log('⚠ Skills directory init failed:', skillsInit.error);
@@ -467,5 +499,10 @@ app.listen(PORT, async () => {
   } else {
     console.log('⚠ Sandbox disabled - File access unrestricted');
   }
+
+  // Display API config
+  console.log(`✓ API endpoint: ${serverConfig.apiEndpoint}`);
+  console.log(`✓ Model: ${serverConfig.defaultModel}`);
+  console.log(`✓ API key: ${serverConfig.apiKey ? 'configured' : 'NOT SET'}`);
   console.log('');
 });

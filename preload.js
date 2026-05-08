@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Send a chat message to the backend with chat ID for session management
-  sendMessage: async (message, chatId, files = []) => {
+  sendMessage: async (message, chatId, files = [], model = null, thinkingMode = 'normal') => {
     const requestId = generateRequestId();
     const controller = new AbortController();
 
@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message, chatId, files }),
+        body: JSON.stringify({ message, chatId, files, model, thinkingMode }),
         signal: controller.signal
       })
         .then(response => {

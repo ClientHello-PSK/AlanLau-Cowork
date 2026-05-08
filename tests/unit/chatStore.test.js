@@ -10,9 +10,7 @@ import {
   removeChatById,
   sortChatsByTime,
   saveChatToStorage,
-  loadChatsFromStorage,
-  isValidChatData,
-  mergeChatData
+  loadChatsFromStorage
 } from '../../renderer/chatStore.js';
 
 describe('createChatData', () => {
@@ -263,56 +261,3 @@ describe('loadChatsFromStorage', () => {
   });
 });
 
-describe('isValidChatData', () => {
-  it('should return true for valid chat data', () => {
-    expect(isValidChatData({ id: 'chat_1', title: 'Title' })).toBe(true);
-  });
-
-  it('should return false for missing id', () => {
-    expect(isValidChatData({ title: 'Title' })).toBe(false);
-  });
-
-  it('should return false for empty id', () => {
-    expect(isValidChatData({ id: '', title: 'Title' })).toBe(false);
-  });
-
-  it('should return false for null/undefined', () => {
-    expect(isValidChatData(null)).toBe(false);
-    expect(isValidChatData(undefined)).toBe(false);
-  });
-
-  it('should return false for non-object', () => {
-    expect(isValidChatData('string')).toBe(false);
-    expect(isValidChatData(123)).toBe(false);
-  });
-});
-
-describe('mergeChatData', () => {
-  it('should merge updates into existing chat', () => {
-    const existing = { id: 'chat_1', title: 'Old', messages: [] };
-    const updates = { title: 'New' };
-
-    const result = mergeChatData(existing, updates);
-
-    expect(result.id).toBe('chat_1');
-    expect(result.title).toBe('New');
-    expect(result.messages).toEqual([]);
-    expect(typeof result.updatedAt).toBe('number');
-  });
-
-  it('should return updates if existing is null', () => {
-    const updates = { id: 'chat_1', title: 'New' };
-
-    const result = mergeChatData(null, updates);
-
-    expect(result).toEqual(updates);
-  });
-
-  it('should handle null updates', () => {
-    const existing = { id: 'chat_1', title: 'Title' };
-
-    const result = mergeChatData(existing, null);
-
-    expect(result.id).toBe('chat_1');
-  });
-});

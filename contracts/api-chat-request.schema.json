@@ -18,8 +18,32 @@
     },
     "userId": {
       "type": "string",
-      "description": "User identifier for Composio session management",
+      "description": "User identifier",
       "default": "default-user"
+    },
+    "model": {
+      "type": "string",
+      "description": "DeepSeek model to use",
+      "enum": ["deepseek-v4-flash", "deepseek-v4-pro"],
+      "default": "deepseek-v4-flash"
+    },
+    "thinkingMode": {
+      "type": "string",
+      "description": "Thinking/reasoning mode",
+      "enum": ["normal", "extended"],
+      "default": "normal"
+    },
+    "files": {
+      "type": "array",
+      "description": "File attachments",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "data": { "type": "string" }
+        }
+      }
     }
   },
   "additionalProperties": false

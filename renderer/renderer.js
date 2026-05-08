@@ -11,7 +11,7 @@ import { getTemplateContent, matchesSearch } from './uiHelpers.js';
 
 // 核心模块
 import { initTheme } from './modules/theme.js';
-import { showToast, showErrorWithRetry } from './modules/feedback.js';
+import { showToast, showErrorWithRetry, initFeedbackCallbacks } from './modules/feedback.js';
 import { initSettings, setupSettingsListeners } from './modules/settings.js';
 import { setupSkillsListeners } from './modules/skillsManager.js';
 import { updateChatHistoryActiveState } from './modules/chatHistory.js';
@@ -69,7 +69,7 @@ const state = {
   toolCalls: [],
   fileChanges: [],
   attachedFiles: [],
-  selectedModel: 'minimax-2-1',
+  selectedModel: 'deepseek-v4-flash',
   thinkingMode: 'normal',
   isWaitingForResponse: false,
   currentRequestId: null,
@@ -221,7 +221,9 @@ async function handleSendMessage(e) {
     const response = await window.electronAPI.sendMessage(
       message,
       state.currentChatId,
-      filesToSend
+      filesToSend,
+      state.selectedModel,
+      state.thinkingMode
     );
     state.currentRequestId = response.requestId;
     const reader = await response.getReader();
@@ -734,6 +736,13 @@ window.addEventListener('load', async () => {
   await initSettings();
   setupSettingsListeners();
   setupSkillsListeners();
+  initFeedbackCallbacks({
+    scrollToBottom: scrollToBottomModule,
+    handleSendMessage: (message, chatId) => {
+      state.currentChatId = chatId || state.currentChatId;
+      handleSendMessage({ preventDefault: () => {} });
+    }
+  });
   autoResizeTextarea(homeInput);
   autoResizeTextarea(messageInput);
 });

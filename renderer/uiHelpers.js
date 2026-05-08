@@ -11,18 +11,6 @@ import {
 } from './utils.js';
 
 /**
- * 计算文本框高度
- * @param {number} scrollHeight - 内容滚动高度
- * @param {number} maxHeight - 最大高度
- * @returns {object} { height, hasScroll }
- */
-export function calculateTextareaHeight(scrollHeight, maxHeight = 200) {
-  const height = Math.min(scrollHeight, maxHeight);
-  const hasScroll = scrollHeight > maxHeight;
-  return { height, hasScroll };
-}
-
-/**
  * 创建 Toast 配置
  * @param {string} type - Toast 类型 ('success' | 'error' | 'info')
  * @returns {object} { icon, color }
@@ -254,40 +242,6 @@ export function buildTaskSectionTitleHTML(groupName) {
 }
 
 /**
- * 构建步骤项 HTML
- * @param {object} toolCall - 工具调用对象
- * @returns {string} HTML 字符串
- */
-export function buildStepItemHTML(toolCall) {
-  const { name, input, status } = toolCall;
-
-  let statusIcon, statusClass;
-  if (status === 'success') {
-    statusClass = 'completed';
-    statusIcon =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-  } else if (status === 'error') {
-    statusClass = 'error';
-    statusIcon =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-  } else {
-    statusClass = 'in_progress';
-    statusIcon =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>';
-  }
-
-  const description = getToolDescription(name, input);
-  const displayText = description ? `${name}: ${description}` : name;
-
-  return `
-    <div class="step-status ${statusClass}">${statusIcon}</div>
-    <div class="step-content">
-      <div class="step-text">${escapeHtmlPure(displayText)}</div>
-    </div>
-  `;
-}
-
-/**
  * 构建消息操作按钮 HTML
  * @returns {string} HTML 字符串
  */
@@ -332,29 +286,6 @@ export function buildErrorRetryHTML(errorMessage) {
       <span class="message-error-icon">⚠</span>
       <span class="message-error-text">${escapeHtmlPure(errorMessage)}</span>
       <button class="message-error-retry">重新发送</button>
-    </div>
-  `;
-}
-
-/**
- * 构建附件文件项 HTML
- * @param {object} file - 文件对象 { name }
- * @param {number} index - 文件索引
- * @param {string} context - 上下文 ('home' | 'chat')
- * @returns {string} HTML 字符串
- */
-export function buildAttachedFileHTML(file, index, context) {
-  return `
-    <div class="attached-file">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-        <polyline points="14 2 14 8 20 8"></polyline>
-      </svg>
-      <span>${escapeHtmlPure(file.name)}</span>
-      <svg class="remove-file" onclick="removeAttachedFile(${index}, '${context}')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-      </svg>
     </div>
   `;
 }

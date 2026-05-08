@@ -8,13 +8,9 @@ import {
   generateId,
   escapeHtmlPure,
   hasUnclosedCodeBlock,
-  getTimeGroupLabel,
   formatToolPreview,
   getToolDescription,
-  debounce,
-  truncateString,
-  parseSSELine,
-  formatFileSize
+  debounce
 } from '../../renderer/utils.js';
 
 describe('generateId', () => {
@@ -103,43 +99,6 @@ describe('hasUnclosedCodeBlock', () => {
   it('should handle non-string input', () => {
     expect(hasUnclosedCodeBlock(null)).toBe(false);
     expect(hasUnclosedCodeBlock(undefined)).toBe(false);
-  });
-});
-
-describe('getTimeGroupLabel', () => {
-  beforeEach(() => {
-    // Mock Date.now() to a fixed point in time
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-18T12:00:00'));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('should return "今天" for today', () => {
-    const today = new Date('2026-01-18T08:00:00').getTime();
-    expect(getTimeGroupLabel(today)).toBe('今天');
-  });
-
-  it('should return "昨天" for yesterday', () => {
-    const yesterday = new Date('2026-01-17T12:00:00').getTime();
-    expect(getTimeGroupLabel(yesterday)).toBe('昨天');
-  });
-
-  it('should return "近 7 天" for 3 days ago', () => {
-    const threeDaysAgo = new Date('2026-01-15T12:00:00').getTime();
-    expect(getTimeGroupLabel(threeDaysAgo)).toBe('近 7 天');
-  });
-
-  it('should return "近 30 天" for 15 days ago', () => {
-    const fifteenDaysAgo = new Date('2026-01-03T12:00:00').getTime();
-    expect(getTimeGroupLabel(fifteenDaysAgo)).toBe('近 30 天');
-  });
-
-  it('should return year/month for older dates', () => {
-    const oldDate = new Date('2025-06-15T12:00:00').getTime();
-    expect(getTimeGroupLabel(oldDate)).toBe('2025年6月');
   });
 });
 
@@ -276,88 +235,3 @@ describe('debounce', () => {
   });
 });
 
-describe('truncateString', () => {
-  it('should not truncate short strings', () => {
-    expect(truncateString('hello', 10)).toBe('hello');
-  });
-
-  it('should truncate long strings with ellipsis', () => {
-    expect(truncateString('hello world', 5)).toBe('hello...');
-  });
-
-  it('should use default max length of 30', () => {
-    const longStr = 'a'.repeat(50);
-    const result = truncateString(longStr);
-    expect(result).toBe('a'.repeat(30) + '...');
-  });
-
-  it('should handle empty string', () => {
-    expect(truncateString('')).toBe('');
-  });
-
-  it('should handle non-string input', () => {
-    expect(truncateString(null)).toBe('');
-    expect(truncateString(undefined)).toBe('');
-    expect(truncateString(123)).toBe('');
-  });
-});
-
-describe('parseSSELine', () => {
-  it('should parse valid SSE data line', () => {
-    const line = 'data: {"type":"text","content":"hello"}';
-    const result = parseSSELine(line);
-    expect(result).toEqual({ type: 'text', content: 'hello' });
-  });
-
-  it('should return null for non-data lines', () => {
-    expect(parseSSELine('event: message')).toBeNull();
-    expect(parseSSELine('')).toBeNull();
-    expect(parseSSELine(null)).toBeNull();
-  });
-
-  it('should return null for invalid JSON', () => {
-    expect(parseSSELine('data: {invalid json}')).toBeNull();
-  });
-
-  it('should parse tool_use events', () => {
-    const line = 'data: {"type":"tool_use","name":"Read","id":"123"}';
-    const result = parseSSELine(line);
-    expect(result).toEqual({ type: 'tool_use', name: 'Read', id: '123' });
-  });
-
-  it('should parse done event', () => {
-    const line = 'data: {"type":"done"}';
-    const result = parseSSELine(line);
-    expect(result).toEqual({ type: 'done' });
-  });
-});
-
-describe('formatFileSize', () => {
-  it('should format bytes', () => {
-    expect(formatFileSize(500)).toBe('500 B');
-  });
-
-  it('should format kilobytes', () => {
-    expect(formatFileSize(1024)).toBe('1.0 KB');
-    expect(formatFileSize(2048)).toBe('2.0 KB');
-  });
-
-  it('should format megabytes', () => {
-    expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
-    expect(formatFileSize(5 * 1024 * 1024)).toBe('5.0 MB');
-  });
-
-  it('should format gigabytes', () => {
-    expect(formatFileSize(1024 * 1024 * 1024)).toBe('1.0 GB');
-  });
-
-  it('should handle zero', () => {
-    expect(formatFileSize(0)).toBe('0 B');
-  });
-
-  it('should handle invalid input', () => {
-    expect(formatFileSize(-100)).toBe('0 B');
-    expect(formatFileSize(null)).toBe('0 B');
-    expect(formatFileSize('abc')).toBe('0 B');
-  });
-});

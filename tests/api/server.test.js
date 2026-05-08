@@ -7,20 +7,14 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import cors from 'cors';
 
-// Mock the Claude Agent SDK before importing anything that uses it
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: vi.fn()
-}));
-
-// Mock Composio
-vi.mock('@composio/core', () => ({
-  Composio: vi.fn().mockImplementation(() => ({
-    create: vi.fn().mockResolvedValue({
-      mcp: {
-        url: 'http://mock-mcp.test',
-        headers: {}
+// Mock OpenAI SDK
+vi.mock('openai', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: vi.fn()
       }
-    })
+    }
   }))
 }));
 

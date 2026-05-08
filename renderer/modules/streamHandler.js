@@ -147,6 +147,13 @@ function handleSSEEvent(data, context) {
     if (callbacks.onSaveState) {
       callbacks.onSaveState();
     }
+  } else if (data.type === 'reasoning' && data.content) {
+    if (!hasContent) {
+      removeLoadingIndicator(contentDiv);
+    }
+    hasContent = true;
+    updateGenerationStatus(assistantMessage, '正在深度思考...');
+    appendReasoningContent(contentDiv, data.content);
   } else if (data.type === 'tool_use') {
     hasContent = handleToolUseEvent(
       data,
@@ -379,4 +386,31 @@ function trackFileChange(toolName, toolInput, callbacks) {
   if (callbacks.onFileChange) {
     callbacks.onFileChange(fileName, filePath, changeType);
   }
+}
+
+/**
+ * 追加推理内容到折叠区域
+ */
+function appendReasoningContent(contentDiv, content) {
+  let reasoningSection = contentDiv.querySelector('.reasoning-section');
+  if (!reasoningSection) {
+    reasoningSection = document.createElement('div');
+    reasoningSection.className = 'reasoning-section collapsed';
+    reasoningSection.innerHTML = `
+      <div class="reasoning-header" onclick="this.parentElement.classList.toggle('expanded');this.parentElement.classList.toggle('collapsed')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span class="reasoning-label">Thinking</span>
+        <svg class="expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+      <div class="reasoning-body"></div>
+    `;
+    contentDiv.insertBefore(reasoningSection, contentDiv.firstChild);
+  }
+  const bodyEl = reasoningSection.querySelector('.reasoning-body');
+  bodyEl.textContent += content;
 }

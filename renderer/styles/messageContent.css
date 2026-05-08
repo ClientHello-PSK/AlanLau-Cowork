@@ -650,3 +650,74 @@
 .message-error-retry:active {
   background: #b91c1c;
 }
+
+/* ==================== REASONING SECTION ==================== */
+
+.reasoning-section {
+  margin-bottom: 12px;
+  border-left: 3px solid var(--accent-coral, #c4917b);
+  padding-left: 12px;
+  opacity: 0.8;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  user-select: none;
+  padding: 4px 0;
+}
+
+.reasoning-header:hover {
+  color: var(--text-primary);
+}
+
+.reasoning-label {
+  font-weight: 500;
+}
+
+.reasoning-header .expand-icon {
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.reasoning-section.expanded .reasoning-header .expand-icon {
+  transform: rotate(180deg);
+}
+
+.reasoning-body {
+  display: none;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 6px;
+  padding: 8px 0;
+  line-height: 1.6;
+}
+
+.reasoning-section.expanded .reasoning-body {
+  display: block;
+}
+
+.reasoning-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.reasoning-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reasoning-body::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 2px;
+}
+
+:root.dark .reasoning-section {
+  border-left-color: #8b6f60;
+}

@@ -48,7 +48,6 @@
             "Bash",
             "Glob",
             "Grep",
-            "WebSearch",
             "WebFetch",
             "TodoWrite"
           ]
@@ -103,11 +102,26 @@
           "description": "Error message"
         }
       }
+    },
+    "reasoning": {
+      "type": "object",
+      "required": ["type", "content"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["reasoning"]
+        },
+        "content": {
+          "type": "string",
+          "description": "Reasoning/thinking content chunk"
+        }
+      }
     }
   },
   "oneOf": [
     { "$ref": "#/definitions/sessionInit" },
     { "$ref": "#/definitions/text" },
+    { "$ref": "#/definitions/reasoning" },
     { "$ref": "#/definitions/toolUse" },
     { "$ref": "#/definitions/toolResult" },
     { "$ref": "#/definitions/done" },

@@ -4,42 +4,16 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  calculateTextareaHeight,
   createToastConfig,
   buildInlineToolCallHTML,
   buildSidebarToolCallHTML,
   buildChatItemHTML,
-  buildStepItemHTML,
   buildMessageActionsHTML,
   buildLoadingIndicatorHTML,
   buildErrorRetryHTML,
-  buildAttachedFileHTML,
   getTemplateContent,
   matchesSearch
 } from '../../renderer/uiHelpers.js';
-
-describe('calculateTextareaHeight', () => {
-  it('should return scrollHeight when below max', () => {
-    const result = calculateTextareaHeight(100, 200);
-
-    expect(result.height).toBe(100);
-    expect(result.hasScroll).toBe(false);
-  });
-
-  it('should cap at maxHeight when exceeded', () => {
-    const result = calculateTextareaHeight(300, 200);
-
-    expect(result.height).toBe(200);
-    expect(result.hasScroll).toBe(true);
-  });
-
-  it('should use default maxHeight of 200', () => {
-    const result = calculateTextareaHeight(150);
-
-    expect(result.height).toBe(150);
-    expect(result.hasScroll).toBe(false);
-  });
-});
 
 describe('createToastConfig', () => {
   it('should return success config', () => {
@@ -186,49 +160,6 @@ describe('buildChatItemHTML', () => {
   });
 });
 
-describe('buildStepItemHTML', () => {
-  it('should build completed step HTML', () => {
-    const toolCall = {
-      id: 'tool_123',
-      name: 'Read',
-      input: { path: '/test.js' },
-      status: 'success'
-    };
-
-    const html = buildStepItemHTML(toolCall);
-
-    expect(html).toContain('completed');
-    expect(html).toContain('Read');
-    expect(html).toContain('test.js');
-  });
-
-  it('should build error step HTML', () => {
-    const toolCall = {
-      id: 'tool_123',
-      name: 'Write',
-      input: {},
-      status: 'error'
-    };
-
-    const html = buildStepItemHTML(toolCall);
-
-    expect(html).toContain('error');
-  });
-
-  it('should build in-progress step HTML', () => {
-    const toolCall = {
-      id: 'tool_123',
-      name: 'Bash',
-      input: { command: 'npm install' },
-      status: 'running'
-    };
-
-    const html = buildStepItemHTML(toolCall);
-
-    expect(html).toContain('in_progress');
-  });
-});
-
 describe('buildMessageActionsHTML', () => {
   it('should return copy button HTML', () => {
     const html = buildMessageActionsHTML();
@@ -262,26 +193,6 @@ describe('buildErrorRetryHTML', () => {
 
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('<script>alert');
-  });
-});
-
-describe('buildAttachedFileHTML', () => {
-  it('should build file attachment HTML', () => {
-    const file = { name: 'document.pdf' };
-
-    const html = buildAttachedFileHTML(file, 0, 'home');
-
-    expect(html).toContain('document.pdf');
-    expect(html).toContain('attached-file');
-    expect(html).toContain("removeAttachedFile(0, 'home')");
-  });
-
-  it('should escape HTML in filename', () => {
-    const file = { name: '<script>.txt' };
-
-    const html = buildAttachedFileHTML(file, 0, 'chat');
-
-    expect(html).toContain('&lt;script&gt;');
   });
 });
 

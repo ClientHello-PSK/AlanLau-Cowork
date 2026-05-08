@@ -56,39 +56,6 @@ export function hasUnclosedCodeBlock(text) {
 }
 
 /**
- * Get time group label for a timestamp
- * @param {number} timestamp - Unix timestamp in milliseconds
- * @returns {string} Time group label
- */
-export function getTimeGroupLabel(timestamp) {
-  const now = new Date();
-  const chatDate = new Date(timestamp);
-
-  // Reset time to midnight for comparison
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const chatDay = new Date(chatDate.getFullYear(), chatDate.getMonth(), chatDate.getDate());
-
-  // Calculate difference in days
-  const diffTime = today - chatDay;
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return '今天';
-  } else if (diffDays === 1) {
-    return '昨天';
-  } else if (diffDays <= 7) {
-    return '近 7 天';
-  } else if (diffDays <= 30) {
-    return '近 30 天';
-  } else {
-    // Format as month/year
-    const month = chatDate.getMonth() + 1;
-    const year = chatDate.getFullYear();
-    return `${year}年${month}月`;
-  }
-}
-
-/**
  * Format relative time for display (e.g., "2 分钟前", "1 小时前")
  * @param {number} timestamp - Unix timestamp in milliseconds
  * @returns {string} Relative time string
@@ -226,61 +193,6 @@ export function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
-}
-
-/**
- * Truncate string with ellipsis
- * @param {string} str - String to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} Truncated string
- */
-export function truncateString(str, maxLength = 30) {
-  if (typeof str !== 'string') {
-    return '';
-  }
-  if (str.length <= maxLength) {
-    return str;
-  }
-  return str.substring(0, maxLength) + '...';
-}
-
-/**
- * Parse SSE data line
- * @param {string} line - SSE data line
- * @returns {object|null} Parsed data or null
- */
-export function parseSSELine(line) {
-  if (!line || !line.startsWith('data: ')) {
-    return null;
-  }
-  try {
-    const jsonStr = line.slice(6);
-    return JSON.parse(jsonStr);
-  } catch (e) {
-    return null;
-  }
-}
-
-/**
- * Format file size for display
- * @param {number} bytes - File size in bytes
- * @returns {string} Formatted size string
- */
-export function formatFileSize(bytes) {
-  if (typeof bytes !== 'number' || bytes < 0) {
-    return '0 B';
-  }
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let unitIndex = 0;
-  let size = bytes;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-
-  return `${size.toFixed(unitIndex > 0 ? 1 : 0)} ${units[unitIndex]}`;
 }
 
 /**

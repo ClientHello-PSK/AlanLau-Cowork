@@ -156,3 +156,6 @@ test-results/
 **/screenshots/
 **/videos/
 **/snapshots/
+
+# Server runtime config (contains user-specific paths)
+server/workspace-config.json

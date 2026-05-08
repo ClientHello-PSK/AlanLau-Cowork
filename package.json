@@ -6,7 +6,7 @@
     "dev": "concurrently \"npm run server\" \"cross-env NODE_ENV=development electron .\"",
     "start": "concurrently \"npm run server\" \"electron .\"",
     "server": "cd server && npm start",
-    "start:win": "run-electron.bat",
+    "start:win": "start.bat",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run --dir tests/unit",
@@ -28,11 +28,7 @@
   "license": "ISC",
   "description": "Electron chat app with Claude Agent SDK",
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.7",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "electron-store": "^8.2.0",
-    "express": "^5.2.1"
+    "electron-store": "^8.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

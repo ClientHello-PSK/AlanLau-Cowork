@@ -7,9 +7,15 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import express from 'express';
 import cors from 'cors';
 
-// Mock external dependencies
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: vi.fn()
+// Mock OpenAI SDK
+vi.mock('openai', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: vi.fn()
+      }
+    }
+  }))
 }));
 
 /**

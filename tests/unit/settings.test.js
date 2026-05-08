@@ -70,7 +70,7 @@ describe('Settings Management', () => {
     });
 
     it('should validate API key format', () => {
-      const validKeys = ['sk-ant-xxx', 'sk-xxx', 'minimax-api-key-123'];
+      const validKeys = ['sk-xxx', 'deepseek-api-key-123'];
 
       const invalidKeys = ['', null, undefined];
 
@@ -87,8 +87,8 @@ describe('Settings Management', () => {
   describe('Model Configuration', () => {
     it('should validate model structure', () => {
       const validModel = {
-        id: 'minimax-2-1',
-        name: 'Minimax 2.1',
+        id: 'deepseek-v4-flash',
+        name: 'DeepSeek V4 Flash',
         default: true
       };
 
@@ -134,8 +134,8 @@ describe('Settings Management', () => {
 
     it('should create default models array', () => {
       const defaultModels = [
-        { id: 'minimax-2-1', name: 'Minimax 2.1', default: true },
-        { id: 'glm-4-7', name: 'GLM 4.7', default: false }
+        { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', default: true },
+        { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', default: false }
       ];
 
       expect(defaultModels).toHaveLength(2);
@@ -320,8 +320,8 @@ describe('Settings Management', () => {
 
     it('should return default models when none configured', () => {
       const getDefaultModels = () => [
-        { id: 'minimax-2-1', name: 'Minimax 2.1', default: true },
-        { id: 'glm-4-7', name: 'GLM 4.7' }
+        { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', default: true },
+        { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }
       ];
 
       const models = getDefaultModels();
@@ -336,8 +336,8 @@ describe('Settings Management', () => {
         apiEndpoint: 'https://api.anthropic.com',
         apiKey: '',
         models: [
-          { id: 'minimax-2-1', name: 'Minimax 2.1', default: true },
-          { id: 'glm-4-7', name: 'GLM 4.7' }
+          { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', default: true },
+          { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }
         ]
       };
 
@@ -356,8 +356,8 @@ describe('Settings Management', () => {
     it('should handle partial model configuration', () => {
       const defaults = {
         models: [
-          { id: 'minimax-2-1', name: 'Minimax 2.1', default: true },
-          { id: 'glm-4-7', name: 'GLM 4.7' }
+          { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', default: true },
+          { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }
         ]
       };
 
